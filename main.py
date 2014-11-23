@@ -1,6 +1,6 @@
 import os
 import cherrypy
-from flask import Flask, abort, request
+from flask import Flask, abort, request, make_response
 
 def build_app():
   app = Flask("My First Database")
@@ -17,8 +17,9 @@ def build_app():
 
   @app.route("/<item_id>", methods=["POST"])
   def post_item(item_id):
-    data_dict[item_id] = int(request.data)
-    return "ok"
+    value = int(request.data)
+    data_dict[item_id] = value
+    return make_response(str(value), 201)
 
   return app
 

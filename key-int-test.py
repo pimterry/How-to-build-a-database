@@ -1,7 +1,7 @@
 import requests
 import unittest
 import random
-from main import build_app, run_server 
+from main import build_app, run_server
 
 def itemUrl(item_id):
   return "http://localhost:8080/%s" % (item_id,)
@@ -17,6 +17,11 @@ class KeyValueTests(unittest.TestCase):
     read = requests.get(url=self.itemUrl())
 
     assert read.status_code == 404
+
+  def test_inserts_are_successful(self):
+    write = requests.post(url=self.itemUrl(), data="500")
+
+    assert write.status_code == 201
 
   def test_insert_then_read_gets_inserted_value(self):
     test_value = "100"
