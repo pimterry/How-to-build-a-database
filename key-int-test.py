@@ -1,14 +1,26 @@
 import requests
 import unittest
 import random
+import time
+from multiprocessing import Process
 from main import build_app, run_server
 
 def itemUrl(item_id):
   return "http://localhost:8080/%s" % (item_id,)
 
+def start_instance():
+  run_server(build_app())
+
 class KeyValueTests(unittest.TestCase):
   def setUp(self):
+    self.server = Process(target=start_instance)
+    self.server.start()
+    time.sleep(0.1)
+
     self.item_id = random.randint(0, 2 ** 32)
+
+  def tearDown(self):
+    self.server.terminate()
 
   def itemUrl(self):
     return "http://localhost:8080/%s" % (self.item_id,)

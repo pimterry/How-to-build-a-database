@@ -1,4 +1,4 @@
-import os
+import os, logging
 import cherrypy
 from flask import Flask, abort, request, make_response
 
@@ -27,11 +27,10 @@ def run_server(app):
     cherrypy.tree.graft(app, '/')
 
     cherrypy.config.update({
-        'engine.autoreload_on': False,
-        'log.screen': True,
         'server.socket_port': int(os.environ.get('PORT', '8080')),
         'server.socket_host': '0.0.0.0'
     })
+    cherrypy.log.error_log.setLevel(logging.WARNING)
 
     cherrypy.engine.start()
     cherrypy.engine.block()
