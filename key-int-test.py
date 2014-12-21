@@ -5,8 +5,10 @@ import time
 from multiprocessing import Process
 from main import build_app, run_server
 
-def itemUrl(item_id):
-  return "http://localhost:8080/%s" % (item_id,)
+class Item:
+  def __init__(self):
+    self.id = random.randint(0, 2**32)
+    self.url = "http://localhost:8080/%s" % (self.id,)
 
 def start_instance():
   run_server(build_app())
@@ -17,37 +19,43 @@ class KeyValueTests(unittest.TestCase):
     self.server.start()
     time.sleep(0.1)
 
-    self.item_id = random.randint(0, 2 ** 32)
-
   def tearDown(self):
     self.server.terminate()
 
-  def itemUrl(self):
-    return "http://localhost:8080/%s" % (self.item_id,)
-
-  def test_read_before_write_gets_404(self):
-    read = requests.get(url=self.itemUrl())
-
+  def test_values_are_empty_initially(self):
+    read = requests.get(Item().url)
     assert read.status_code == 404
 
   def test_inserts_are_successful(self):
-    write = requests.post(url=self.itemUrl(), data="500")
-
+    write = requests.post(Item().url, "1")
     assert write.status_code == 201
 
   def test_insert_then_read_gets_inserted_value(self):
-    test_value = "100"
-    requests.post(url=self.itemUrl(), data=test_value)
-    read = requests.get(url=self.itemUrl())
+    item, value = Item(), "1"
+    
+    requests.post(item.url, value)
+    read = requests.get(item.url)
 
-    assert read.status_code == 200
-    assert read.text == test_value
+    assert read.status_code, read.text == (200, value)
+
+  def test_insert_different_items_stores_separate_values(self):
+    item1, value1 = Item(), "1"
+    item2, value2 = Item(), "2"
+
+    requests.post(item1.url, value1)
+    requests.post(item2.url, value2)
+    read1 = requests.get(item1.url)
+    read2 = requests.get(item2.url)
+
+    assert read1.status_code, read1.text == (200, value1)
+    assert read2.status_code, read2.text == (200, value2)
+
 
   def test_insert_then_update_then_read_gets_2nd_value(self):
-    first_value, second_value = "100", "200"
-    requests.post(url=self.itemUrl(), data=first_value)
-    requests.post(url=self.itemUrl(), data=second_value)
-    read = requests.get(url=self.itemUrl())
+    item, value1, value2 = Item(), "1", "2"
 
-    assert read.status_code == 200
-    assert read.text == second_value
+    requests.post(item.url, value1)
+    requests.post(item.url, value2)
+    read = requests.get(item.url)
+
+    assert read.status_code, read.text == (200, value2)
