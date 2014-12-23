@@ -1,5 +1,4 @@
-import os, logging
-import cherrypy
+import os, logging, json, cherrypy
 from flask import Flask, abort, request, make_response
 
 def build_app():
@@ -14,6 +13,13 @@ def build_app():
       return "%s" % (data_dict[item_id],)
     except KeyError:
       raise abort(404)
+
+  @app.route("/range")
+  def get_range():
+    start, end = int(request.args.get('start')), int(request.args.get('end'))
+    keys = range(start, end + 1)
+
+    return json.dumps([data_dict[k] for k in keys if k in data_dict])
 
   @app.route("/<int:item_id>", methods=["POST"])
   def post_item(item_id):
