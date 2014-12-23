@@ -8,14 +8,14 @@ def build_app():
 
   data_dict = { }
 
-  @app.route("/<item_id>", methods=["GET"])
+  @app.route("/<int:item_id>", methods=["GET"])
   def get_item(item_id):
     try:
       return "%s" % (data_dict[item_id],)
     except KeyError:
       raise abort(404)
 
-  @app.route("/<item_id>", methods=["POST"])
+  @app.route("/<int:item_id>", methods=["POST"])
   def post_item(item_id):
     value = int(request.data)
     data_dict[item_id] = value
