@@ -1,9 +1,10 @@
 # -*- mode: ruby -*-
 # vi: set ft=ruby :
 
-Vagrant::Config.run do |config|
+Vagrant.configure("2") do |config|
   config.vm.box = "ubuntu/trusty64"  
-  config.vm.forward_port 8080, 8080
+
+  config.vm.network :forwarded_port, host: 8080, guest: 8080
 
   config.vm.provision "shell", inline: ('
     apt-get -y install python3 python3-pip python3-dev python-lxml
