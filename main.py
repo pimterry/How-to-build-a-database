@@ -1,8 +1,8 @@
-import os, logging, json, cherrypy
+import os, json, cherrypy
 from flask import Flask, abort, request, make_response
 
 def build_app():
-  app = Flask("My First Database")
+  app = Flask(__name__)
   app.debug = True
 
   data_dict = { }
