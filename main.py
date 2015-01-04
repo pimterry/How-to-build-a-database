@@ -7,6 +7,11 @@ def build_app():
 
   data_dict = { }
 
+  @app.route("/reset", methods=["POST"])
+  def reset():
+      data_dict.clear()
+      return make_response("", 200)
+
   @app.route("/<int:item_id>", methods=["GET"])
   def get_item(item_id):
     try:
@@ -34,9 +39,9 @@ def run_server(app):
 
     cherrypy.config.update({
         'server.socket_port': int(os.environ.get('PORT', '8080')),
-        'server.socket_host': '0.0.0.0'
+        'server.socket_host': '0.0.0.0',
+        'environment': 'production'
     })
-    cherrypy.log.error_log.setLevel(logging.WARNING)
 
     cherrypy.engine.start()
     cherrypy.engine.block()

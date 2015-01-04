@@ -14,13 +14,18 @@ def start_instance():
   run_server(build_app())
 
 class KeyValueTests(unittest.TestCase):
-  def setUp(self):
-    self.server = Process(target=start_instance)
-    self.server.start()
+  @classmethod
+  def setUpClass(cls):
+    cls.server = Process(target=start_instance)
+    cls.server.start()
     time.sleep(0.1)
 
-  def tearDown(self):
-    self.server.terminate()
+  @classmethod
+  def tearDownClass(cls):
+    cls.server.terminate()
+
+  def setUp(self):
+    requests.post("http://localhost:8080/reset")
 
   def test_values_are_empty_initially(self):
     read = requests.get(Item().url)
