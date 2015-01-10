@@ -37,7 +37,7 @@ def build_app():
   @app.route("/<int:item_id>", methods=["GET"])
   def get_item(item_id):
     try:
-      return "%s" % (database.get(item_id),)
+      return json.dumps(database.get(item_id))
     except KeyError:
       raise abort(404)
 
@@ -48,7 +48,7 @@ def build_app():
 
   @app.route("/<int:item_id>", methods=["POST"])
   def post_item(item_id):
-    value = int(request.data)
+    value = json.loads(request.data.decode('utf-8'))
     database.put(item_id, value)
     return make_response(str(value), 201)
 
