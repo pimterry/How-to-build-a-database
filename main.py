@@ -20,6 +20,15 @@ class Database:
 
         return self.values[start_index:end_index]
 
+    def get_by(self, field_name, field_value):
+        for value in self.values:
+            try:
+                if value[field_name] == field_value:
+                    return value
+            except KeyError:
+                pass
+        raise KeyError()
+
     def clear(self):
         self.data.clear()
 
@@ -51,6 +60,15 @@ def build_app():
     value = json.loads(request.data.decode('utf-8'))
     database.put(item_id, value)
     return make_response(str(value), 201)
+
+  @app.route("/by/<field_name>/<field_value>")
+  def query_by_field(field_name, field_value):
+    parsed_value = json.loads(field_value)
+
+    try:
+        return json.dumps(database.get_by(field_name, parsed_value))
+    except KeyError:
+        raise abort(404)
 
   return app
 
