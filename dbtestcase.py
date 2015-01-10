@@ -23,4 +23,10 @@ class DbTestCase(unittest.TestCase):
 
     def assertReturns(self, request, data):
         self.assertIn(request.status_code, range(200, 300))
-        self.assertEqual(json.loads(request.text), data)
+
+        try:
+            content = json.loads(request.text)
+        except Exception as e:
+            self.fail("Failed to parse response JSON:\n%s\n%s" % (request.text, e))
+
+        self.assertEqual(content, data)
