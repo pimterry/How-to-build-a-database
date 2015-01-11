@@ -34,3 +34,11 @@ class AggregatesTests(DbTestCase):
 
     self.assertLess(query_seconds, 0.02)
     self.assertReturns(read, 10000)
+
+  def test_handles_removal_of_column_indexed_field(self):
+    requests.post(Item(0).url, json.dumps({"name": "Tim perry", "value": 1}))
+    requests.post(Item(0).url, json.dumps({"name": "Tim perry"}))
+
+    read = requests.get(Sum('value').url)
+
+    self.assertReturns(read, 0)

@@ -36,6 +36,9 @@ class Database:
             pass
 
     def _update_column(self, column, key, field_name, new_value):
+        if key in column:
+            del column[key]
+
         if field_name in new_value:
             column[key] = new_value[field_name]
 
