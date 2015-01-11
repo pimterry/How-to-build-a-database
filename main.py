@@ -1,4 +1,4 @@
-import os, json, logging, cherrypy
+import os, json, logging, cherrypy, collections
 from blist import sorteddict
 from flask import Flask, abort, request, make_response
 
@@ -11,22 +11,25 @@ class Database:
         self.indexes = { field: sorteddict() for field in fields_to_index }
 
     def put(self, key, value):
-        oldValue = self.data[key] if key in self.data else None
+        old_value = self.data[key] if key in self.data else None
         self.data[key] = value
 
-        for field_name, index in self.indexes.items():
-            if oldValue:
-                try:
-                    old_key_in_index = oldValue[field_name]
-                    del index[old_key_in_index]
-                except (KeyError, TypeError) as e:
-                    pass
+        if isinstance(value, collections.Iterable):
+            for field_name, index in self.indexes.items():
+                self._update_index(index, field_name, value, old_value)
 
+    def _update_index(self, index, field_name, new_value, old_value):
+        if old_value:
             try:
-                key_in_index = value[field_name]
-                index[key_in_index] = value
+                old_key_in_index = old_value[field_name]
+                del index[old_key_in_index]
             except (KeyError, TypeError):
                 pass
+        try:
+            key_in_index = new_value[field_name]
+            index[key_in_index] = new_value
+        except (KeyError, TypeError):
+            pass
 
     def get(self, key):
         return self.data[key]
