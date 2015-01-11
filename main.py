@@ -3,12 +3,13 @@ from blist import sorteddict
 from flask import Flask, abort, request, make_response
 
 class Database:
-    def __init__(self, fields_to_index=[]):
+    def __init__(self, fields_to_index=[], columns=[]):
         self.data = sorteddict()
         self.keys = self.data.keys()
         self.values = self.data.values()
 
         self.indexes = { field: sorteddict() for field in fields_to_index }
+        self.columns = { field: sorteddict() for field in columns }
 
     def put(self, key, value):
         old_value = self.data[key] if key in self.data else None
@@ -17,6 +18,9 @@ class Database:
         if isinstance(value, collections.Iterable):
             for field_name, index in self.indexes.items():
                 self._update_index(index, field_name, value, old_value)
+
+            for field_name, column in self.columns.items():
+                self._update_column(column, key, field_name, value)
 
     def _update_index(self, index, field_name, new_value, old_value):
         if old_value:
@@ -30,6 +34,10 @@ class Database:
             index[key_in_index] = new_value
         except (KeyError, TypeError):
             pass
+
+    def _update_column(self, column, key, field_name, new_value):
+        if field_name in new_value:
+            column[key] = new_value[field_name]
 
     def get(self, key):
         return self.data[key]
@@ -48,24 +56,23 @@ class Database:
         return index[field_value]
 
     def sum(self, field_name):
-        total = 0
-        for value in self.values:
-            try:
-                total += value[field_name]
-            except (KeyError, TypeError):
-                pass
-        return total
+        if field_name not in self.columns:
+            raise ValueError("Cannot aggregate non-columnular data")
+
+        return sum(self.columns[field_name].values())
 
     def clear(self):
         self.data.clear()
         for index in self.indexes.values():
             index.clear()
+        for column in self.columns.values():
+            column.clear()
 
 def build_app():
   app = Flask(__name__)
   app.debug = True
 
-  database = Database(["name"])
+  database = Database(["name"], ["value"])
 
   @app.route("/reset", methods=["POST"])
   def reset():
