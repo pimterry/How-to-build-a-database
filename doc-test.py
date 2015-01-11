@@ -52,3 +52,13 @@ class DocumentTests(DbTestCase):
 
     self.assertLess(query_millis, 0.01)
     self.assertReturns(read, {'id': 9999, 'name': 'Item 9999'})
+
+  def test_updates_index_after_changes(self):
+    requests.post(Item(0).url, json.dumps({"id": 0, "name": "Name1"}))
+    requests.post(Item(0).url, json.dumps({"id": 0, "name": "Name2"}))
+
+    read1 = requests.get(Query("name", "Name1").url)
+    read2 = requests.get(Query("name", "Name2").url)
+
+    self.assertEquals(404, read1.status_code)
+    self.assertReturns(read2, { 'id': 0, 'name': 'Name2' })

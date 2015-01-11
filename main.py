@@ -11,9 +11,17 @@ class Database:
         self.indexes = { field: sorteddict() for field in fields_to_index }
 
     def put(self, key, value):
+        oldValue = self.data[key] if key in self.data else None
         self.data[key] = value
 
         for field_name, index in self.indexes.items():
+            if oldValue:
+                try:
+                    old_key_in_index = oldValue[field_name]
+                    del index[old_key_in_index]
+                except (KeyError, TypeError) as e:
+                    pass
+
             try:
                 key_in_index = value[field_name]
                 index[key_in_index] = value
