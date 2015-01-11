@@ -61,10 +61,15 @@ def build_app():
     database.put(item_id, value)
     return make_response(str(value), 201)
 
+  @app.route("/", methods=["POST"])
+  def post_items():
+      for k, v in json.loads(request.data.decode('utf-8')):
+          database.put(k, v)
+      return make_response("", 201)
+
   @app.route("/by/<field_name>/<field_value>")
   def query_by_field(field_name, field_value):
     parsed_value = json.loads(field_value)
-
     try:
         return json.dumps(database.get_by(field_name, parsed_value))
     except KeyError:
