@@ -47,6 +47,15 @@ class Database:
         index = self.indexes[field_name]
         return index[field_value]
 
+    def sum(self, field_name):
+        total = 0
+        for value in self.values:
+            try:
+                total += value[field_name]
+            except (KeyError, TypeError):
+                pass
+        return total
+
     def clear(self):
         self.data.clear()
         for index in self.indexes.values():
@@ -94,6 +103,10 @@ def build_app():
         return json.dumps(database.get_by(field_name, parsed_value))
     except KeyError:
         raise abort(404)
+
+  @app.route("/sum/<field_name>")
+  def sum(field_name):
+    return make_response(str(database.sum(field_name)), 200)
 
   return app
 
