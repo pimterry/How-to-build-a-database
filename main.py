@@ -25,7 +25,7 @@ class Database:
             try:
                 if value[field_name] == field_value:
                     return value
-            except KeyError:
+            except (KeyError, TypeError):
                 pass
         raise KeyError()
 
