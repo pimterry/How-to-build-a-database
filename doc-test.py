@@ -1,4 +1,4 @@
-import requests, random, json
+import requests, random, json, time
 from dbtestcase import DbTestCase, DB_ROOT
 
 class Item:
@@ -41,3 +41,14 @@ class DocumentTests(DbTestCase):
     read = requests.get(Query("name", "Clare").url)
 
     self.assertEquals(404, read.status_code)
+
+  def test_can_quickly_query_by_field(self):
+    data = json.dumps([(i, {'id': i, 'name': 'Item %s' % i}) for i in range(0, 10000)])
+    requests.post(DB_ROOT, data)
+
+    start = time.time()
+    read = requests.get(Query("name", "Item 9999").url)
+    query_millis = time.time() - start
+
+    self.assertLess(query_millis, 0.01)
+    self.assertReturns(read, {'id': 9999, 'name': 'Item 9999'})

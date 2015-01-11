@@ -3,13 +3,22 @@ from blist import sorteddict
 from flask import Flask, abort, request, make_response
 
 class Database:
-    def __init__(self):
+    def __init__(self, fields_to_index=[]):
         self.data = sorteddict()
         self.keys = self.data.keys()
         self.values = self.data.values()
 
+        self.indexes = { field: sorteddict() for field in fields_to_index }
+
     def put(self, key, value):
         self.data[key] = value
+
+        for field_name, index in self.indexes.items():
+            try:
+                key_in_index = value[field_name]
+                index[key_in_index] = value
+            except (KeyError, TypeError):
+                pass
 
     def get(self, key):
         return self.data[key]
@@ -21,22 +30,22 @@ class Database:
         return self.values[start_index:end_index]
 
     def get_by(self, field_name, field_value):
-        for value in self.values:
-            try:
-                if value[field_name] == field_value:
-                    return value
-            except (KeyError, TypeError):
-                pass
-        raise KeyError()
+        if field_name not in self.indexes:
+            raise ValueError("Cannot query without an index for field %s" % field_name)
+
+        index = self.indexes[field_name]
+        return index[field_value]
 
     def clear(self):
         self.data.clear()
+        for index in self.indexes.values():
+            index.clear()
 
 def build_app():
   app = Flask(__name__)
   app.debug = True
 
-  database = Database()
+  database = Database(["name"])
 
   @app.route("/reset", methods=["POST"])
   def reset():
