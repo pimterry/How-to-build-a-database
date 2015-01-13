@@ -4,21 +4,34 @@ from main import build_app, run_server
 
 DB_ROOT = "http://localhost:8080"
 
-def start_instance():
-    run_server(build_app())
+def instance_starter(db_file):
+    def start_instance():
+        run_server(build_app(db_file))
+    return start_instance
 
 class DbTestCase(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.server = Process(target=start_instance)
-        cls.server.start()
-        time.sleep(0.1)
+        DbTestCase.startServer()
 
     @classmethod
     def tearDownClass(cls):
-        cls.server.terminate()
+        DbTestCase.stopServer()
+
+    @classmethod
+    def startServer(cls, db_file=None):
+        DbTestCase.server = Process(target=instance_starter(db_file))
+        DbTestCase.server.start()
+        time.sleep(0.1)
+
+    @classmethod
+    def stopServer(cls):
+        DbTestCase.server.terminate()
 
     def setUp(self):
+        if not DbTestCase.server.is_alive():
+            DbTestCase.startServer()
+
         requests.post(DB_ROOT + "/reset")
 
     def assertReturns(self, request, data):

@@ -1,15 +1,28 @@
-import os, json, logging, cherrypy, collections
+import os, json, logging, cherrypy, collections, pickle
 from blist import sorteddict
 from flask import Flask, abort, request, make_response
 
 class Database:
-    def __init__(self, fields_to_index=[], columns=[]):
+    def __init__(self, db_filename, fields_to_index=[], columns=[]):
         self.data = sorteddict()
         self.keys = self.data.keys()
         self.values = self.data.values()
 
         self.indexes = { field: sorteddict() for field in fields_to_index }
         self.columns = { field: sorteddict() for field in columns }
+
+        self.db_file = None
+
+        if db_filename:
+            db_file = open(db_filename, 'r+b')
+            if os.path.exists(db_filename) and os.path.getsize(db_filename) > 0:
+                self.load_db(db_file)
+            self.db_file = db_file
+
+    def load_db(self, db_file):
+        data = pickle.load(db_file)
+        for k, v in data.items():
+            self.put(k, v)
 
     def put(self, key, value):
         old_value = self.data[key] if key in self.data else None
@@ -71,11 +84,11 @@ class Database:
         for column in self.columns.values():
             column.clear()
 
-def build_app():
+def build_app(db_filename=None):
   app = Flask(__name__)
   app.debug = True
 
-  database = Database(["name"], ["value"])
+  database = Database(db_filename, ["name"], ["value"])
 
   @app.route("/reset", methods=["POST"])
   def reset():
