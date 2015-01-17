@@ -13,6 +13,7 @@ class DurabilityTests(DbTestCase):
         self.db_file = tempfile.NamedTemporaryFile()
 
     def tearDown(self):
+        DbTestCase.stopServer()
         self.db_file.close()
 
     def saveDbFile(self, data):
@@ -34,3 +35,13 @@ class DurabilityTests(DbTestCase):
         read = requests.get(Item(0).url)
 
         self.assertReturns(read, "test-data")
+
+    def test_persists_changes_over_restart(self):
+        DbTestCase.startServer(self.db_file.name)
+
+        requests.post(Item(0).url, "123")
+        DbTestCase.stopServer()
+        DbTestCase.startServer(self.db_file.name)
+        read = requests.get(Item(0).url)
+
+        self.assertReturns(read, 123)

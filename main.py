@@ -35,6 +35,16 @@ class Database:
             for field_name, column in self.columns.items():
                 self._update_column(column, key, field_name, value)
 
+        self.persist_changes()
+
+    def persist_changes(self):
+        if self.db_file != None:
+            self.db_file.seek(0)
+            pickle.dump(self.data, self.db_file)
+
+            self.db_file.flush()
+            os.fsync(self.db_file.fileno())
+
     def _update_index(self, index, field_name, new_value, old_value):
         if old_value:
             try:
