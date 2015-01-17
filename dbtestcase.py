@@ -1,8 +1,10 @@
-import unittest, time, requests, json
+import unittest, time, requests, json, logging
 from multiprocessing import Process
 from main import build_app, run_server
 
 DB_ROOT = "http://localhost:8080"
+
+logging.getLogger("requests.packages.urllib3").setLevel(logging.WARN)
 
 def instance_starter(db_file):
     def start_instance():
