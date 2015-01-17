@@ -1,6 +1,7 @@
 import os, json, logging, cherrypy, collections, pickle, time
 from blist import sorteddict
-from threading import Thread
+from threading import Thread, Event, Lock
+from concurrent.futures import ThreadPoolExecutor
 from flask import Flask, abort, request, make_response
 
 class DatabasePersistThread(Thread):
@@ -10,8 +11,8 @@ class DatabasePersistThread(Thread):
 
     def run(self):
         while True:
+            self.db.persist_needed.wait()
             self.db.persist_changes()
-            time.sleep(1)
 
 class Database:
     def __init__(self, db_filename, fields_to_index=[], columns=[]):
@@ -23,6 +24,12 @@ class Database:
         self.columns = { field: sorteddict() for field in columns }
 
         self.db_file = None
+
+        self.lock = Lock()
+
+        self.persist_needed = Event()
+        self.persisted = Event()
+        self.persisted.set()
 
         if db_filename:
             db_file = open(db_filename, 'r+b')
@@ -38,23 +45,32 @@ class Database:
             self.put(k, v)
 
     def put(self, key, value):
-        old_value = self.data[key] if key in self.data else None
-        self.data[key] = value
+        with self.lock:
+            old_value = self.data[key] if key in self.data else None
+            self.data[key] = value
 
-        if isinstance(value, collections.Iterable):
-            for field_name, index in self.indexes.items():
-                self._update_index(index, field_name, value, old_value)
+            if isinstance(value, collections.Iterable):
+                for field_name, index in self.indexes.items():
+                    self._update_index(index, field_name, value, old_value)
 
-            for field_name, column in self.columns.items():
-                self._update_column(column, key, field_name, value)
+                for field_name, column in self.columns.items():
+                    self._update_column(column, key, field_name, value)
+
+            if self.db_file:
+                self.persisted.clear()
+                self.persist_needed.set()
+        self.persisted.wait()
 
     def persist_changes(self):
-        if self.db_file != None:
+        if self.db_file is not None:
             self.db_file.seek(0)
             pickle.dump(self.data, self.db_file)
 
             self.db_file.flush()
             os.fsync(self.db_file.fileno())
+
+            self.persist_needed.clear()
+            self.persisted.set()
 
     def _update_index(self, index, field_name, new_value, old_value):
         if old_value:
@@ -136,9 +152,10 @@ def build_app(db_filename=None):
 
   @app.route("/", methods=["POST"])
   def post_items():
-      for k, v in json.loads(request.data.decode('utf-8')):
-          database.put(k, v)
-      return make_response("", 201)
+    data = json.loads(request.data.decode('utf-8'))
+    with ThreadPoolExecutor(10) as executor:
+      list(executor.map(lambda pair: database.put(pair[0], pair[1]), data))
+    return make_response("", 201)
 
   @app.route("/by/<field_name>/<field_value>")
   def query_by_field(field_name, field_value):
