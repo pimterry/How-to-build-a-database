@@ -1,6 +1,17 @@
-import os, json, logging, cherrypy, collections, pickle
+import os, json, logging, cherrypy, collections, pickle, time
 from blist import sorteddict
+from threading import Thread
 from flask import Flask, abort, request, make_response
+
+class DatabasePersistThread(Thread):
+    def __init__(self, db):
+        super().__init__()
+        self.db = db
+
+    def run(self):
+        while True:
+            self.db.persist_changes()
+            time.sleep(1)
 
 class Database:
     def __init__(self, db_filename, fields_to_index=[], columns=[]):
@@ -19,6 +30,8 @@ class Database:
                 self.load_db(db_file)
             self.db_file = db_file
 
+            DatabasePersistThread(self).start()
+
     def load_db(self, db_file):
         data = pickle.load(db_file)
         for k, v in data.items():
@@ -34,8 +47,6 @@ class Database:
 
             for field_name, column in self.columns.items():
                 self._update_column(column, key, field_name, value)
-
-        self.persist_changes()
 
     def persist_changes(self):
         if self.db_file != None:

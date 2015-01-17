@@ -40,8 +40,29 @@ class DurabilityTests(DbTestCase):
         DbTestCase.startServer(self.db_file.name)
 
         requests.post(Item(0).url, "123")
+        time.sleep(1)
         DbTestCase.stopServer()
         DbTestCase.startServer(self.db_file.name)
         read = requests.get(Item(0).url)
 
         self.assertReturns(read, 123)
+
+    def test_run_quickly_without_persistence(self):
+        DbTestCase.startServer()
+        data = json.dumps([(i, i) for i in range(0, 1000)])
+
+        startTime = time.time()
+        requests.post(DB_ROOT, data)
+        writeTime = time.time() - startTime
+
+        self.assertLess(writeTime, 0.05)
+
+    def test_run_quickly_with_persistence(self):
+        DbTestCase.startServer(self.db_file.name)
+        data = json.dumps([(i, i) for i in range(0, 1000)])
+
+        startTime = time.time()
+        requests.post(DB_ROOT, data)
+        writeTime = time.time() - startTime
+
+        self.assertLess(writeTime, 0.05)
