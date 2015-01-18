@@ -51,9 +51,7 @@ class MitmTcpProxy(Thread):
             while data:
                 data = source.recv(1024)
                 if data: target.sendall(data)
-        except socket.error as e:
-            print("Forwarding socket threw an exception: %s" % e)
-            traceback.print_exc()
+        except: pass
 
         try: source.shutdown(socket.SHUT_RD)
         except: pass

@@ -1,13 +1,25 @@
-import requests, time, unittest
+import requests, time, json, unittest
 from dbtestcase import DbTestCase
 from mitm_tcp_proxy import start_proxy
 
+def proxy_port(i):
+    return 9090 + i
+
+def server_port(i):
+    return 8080 + i
+
 class Server:
-    def __init__(self, server_num):
-        self.port = 9090 + server_num
+    def __init__(self, server_num, direct=False):
+        if direct:
+            self.port = server_port(server_num)
+        else:
+            self.port = proxy_port(server_num)
 
     def item(self, id = None):
-        return "http://localhost:%s/%s" % (self.port, id)
+        return "%s/%s" % (self.root(), id)
+
+    def root(self):
+        return "http://localhost:%s/" % self.port
 
 class DistributedTests(DbTestCase):
 
@@ -17,21 +29,34 @@ class DistributedTests(DbTestCase):
         self.servers = []
         self.proxies = []
 
-        whole_cluster = [9090, 9091, 9092]
+        whole_cluster = [proxy_port(i) for i in range(3)]
 
         for i in range(3):
-            server_port = 8080+i
-            proxied_server_port = 9090+i
-            rest_of_cluster = ["http://localhost:%s" % c for c in whole_cluster if c != proxied_server_port]
+            rest_of_cluster = ["http://localhost:%s" % c for c in whole_cluster if c != proxy_port(i)]
 
-            self.servers.append(DbTestCase.start_and_return_server(port=server_port, cluster=rest_of_cluster))
-            self.proxies.append(start_proxy(proxied_server_port, server_port))
+            self.servers.append(DbTestCase.start_and_return_server(port=server_port(i), cluster=rest_of_cluster))
+            self.proxies.append(start_proxy(proxy_port(i), server_port(i)))
 
     def tearDown(self):
         for server in self.servers:
             server.terminate()
+        self.stop_all_proxies()
+
+    def start_proxy(self, proxy_num):
+        self.proxies[proxy_num] = start_proxy(proxy_port(proxy_num), server_port(proxy_num))
+
+    def start_all_proxies(self):
+        for i in range(3):
+            self.proxies[i] = start_proxy(proxy_port(i), server_port(i))
+
+    def stop_proxy(self, proxy_num):
+        self.proxies[proxy_num].terminate()
+        self.proxies[proxy_num] = None
+
+    def stop_all_proxies(self):
         for proxy in self.proxies:
-            proxy.terminate()
+            if proxy is not None:
+                proxy.terminate()
 
     def test_data_is_available_from_all_servers(self):
         requests.post(Server(0).item(0), "5")
@@ -44,7 +69,7 @@ class DistributedTests(DbTestCase):
         self.assertReturns(read2, 5)
 
     def test_cluster_replicate_despite_individual_outages(self):
-        self.proxies[1].terminate()
+        self.stop_proxy(1)
         requests.post(Server(0).item(0), "1")
 
         read2 = requests.get(Server(2).item(0))
