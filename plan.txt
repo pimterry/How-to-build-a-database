@@ -1,36 +1,41 @@
 Build a key-value store
 * Shows basic API, core data structures (dictionaries), simplicity
-* Only using values as ints initially - can you make structs in Python?
-* Some locking?
+* Only using values as ints initially
 10 mins
 
 5 mins for playing around
 
 Allow range queries
-* Sorted lists
-* B+ trees
-* Show that they're quicker
+* Show how they're silly slow with dicts
+* B+ trees instead
+* Show that they're way quicker
 5 mins
 
-Add schemaless document data
-Add secondary indexes over document internals
-5 mins
-
-5 mins for playing around
-
-Add durability - Variably, show how that affects performance
+Add docs
+* Add schemaless document data
+* Add querying for fields
+* Add secondary indexes to make queries fast (with locks)
+* Talk briefly about how clustered indexes work
 10 mins
+
 
 5 mins for playing around
 
 Allow aggregate queries
-Move to column-orientated, show why it's better at those
+Show why
+Add column-orientated, show why it's quicker at those
 10 mins
 
 5 mins for playing around
 
+Add durability
+* Synchronously, showing why flushes are required
+* Asynchronously, showing how much quicker that is
+* Batched, showing how it gives us both-ish
+10 mins
+5 mins for playing around
+
 Distribute!
-* Could do with columns, and shard by column, but probably better to do with docs
 * Aim for availability with full replication first
 * Try to make consistent, show how hard that is, and the availability tradeoffs
 20 mins?
@@ -40,4 +45,4 @@ Distribute!
 Conclusion
 2 mins
 
-= 90 mins
+= 95 mins
