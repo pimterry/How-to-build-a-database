@@ -1,10 +1,11 @@
 from threading import Thread
-import traceback, socket
+import traceback, socket, time
 
 
 def start_proxy(listen_port, target_port, target_host='localhost'):
     proxy = MitmTcpProxy(listen_port, target_port, target_host)
     proxy.start()
+    time.sleep(0.1)
     return proxy
 
 

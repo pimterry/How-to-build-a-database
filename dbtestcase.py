@@ -6,35 +6,40 @@ DB_ROOT = "http://localhost:8080"
 
 logging.getLogger("requests.packages.urllib3").setLevel(logging.WARN)
 
-def instance_starter(db_file):
+def instance_starter(db_file, port, cluster):
     def start_instance():
-        run_server(build_app(db_file))
+        run_server(build_app(db_file, cluster), port)
     return start_instance
 
 class DbTestCase(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        DbTestCase.startServer()
+        DbTestCase.start_server()
+
+    def setUp(self):
+        if not DbTestCase.server or not DbTestCase.server.is_alive():
+            DbTestCase.start_server()
+
+        requests.post(DB_ROOT + "/reset")
+
+    @classmethod
+    def start_server(cls, db_file=None, port=8080):
+        DbTestCase.server = DbTestCase.start_and_return_server(db_file, port)
+
+    @classmethod
+    def start_and_return_server(cls, db_file=None, port=8080, cluster=[]):
+        process = Process(target=instance_starter(db_file, port, cluster))
+        process.start()
+        time.sleep(0.1)
+        return process
 
     @classmethod
     def tearDownClass(cls):
-        DbTestCase.stopServer()
+        DbTestCase.stop_server()
 
     @classmethod
-    def startServer(cls, db_file=None):
-        DbTestCase.server = Process(target=instance_starter(db_file))
-        DbTestCase.server.start()
-        time.sleep(0.1)
-
-    @classmethod
-    def stopServer(cls):
+    def stop_server(cls):
         DbTestCase.server.terminate()
-
-    def setUp(self):
-        if not DbTestCase.server.is_alive():
-            DbTestCase.startServer()
-
-        requests.post(DB_ROOT + "/reset")
 
     def assertReturns(self, request, data):
         self.assertIn(request.status_code, range(200, 300))

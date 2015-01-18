@@ -1,4 +1,4 @@
-import os, json, logging, cherrypy, collections, pickle, time
+import os, json, logging, cherrypy, collections, pickle, requests
 from blist import sorteddict
 from threading import Thread, Event, Lock
 from concurrent.futures import ThreadPoolExecutor
@@ -17,7 +17,7 @@ class DatabasePersistThread(Thread):
 
 
 class Database:
-    def __init__(self, db_filename, fields_to_index=[], columns=[]):
+    def __init__(self, db_filename, fields_to_index=[], columns=[], cluster=[]):
         self.data = sorteddict()
         self.keys = self.data.keys()
         self.values = self.data.values()
@@ -26,6 +26,7 @@ class Database:
         self.columns = {field: sorteddict() for field in columns}
 
         self.db_file = None
+        self.cluster = cluster
 
         self.lock = Lock()
 
@@ -47,8 +48,11 @@ class Database:
             self.put(k, v)
 
     def put(self, key, value):
+        old_value = self.data[key] if key in self.data else None
+        if old_value == value:
+            return
+
         with self.lock:
-            old_value = self.data[key] if key in self.data else None
             self.data[key] = value
 
             if isinstance(value, collections.Iterable):
@@ -61,7 +65,13 @@ class Database:
             if self.db_file:
                 self.persisted.clear()
                 self.persist_needed.set()
+
+            self.sync_with_cluster(key, value)
         self.persisted.wait()
+
+    def sync_with_cluster(self, key, value):
+        for server in self.cluster:
+            requests.post("%s/%s" % (server, key), json.dumps(value))
 
     def persist_changes(self):
         if self.db_file is not None:
@@ -124,11 +134,11 @@ class Database:
             column.clear()
 
 
-def build_app(db_filename=None):
+def build_app(db_filename=None, cluster=[]):
     app = Flask(__name__)
     app.debug = True
 
-    database = Database(db_filename, ["name"], ["value"])
+    database = Database(db_filename, ["name"], ["value"], cluster)
 
     @app.route("/reset", methods=["POST"])
     def reset():
@@ -175,11 +185,11 @@ def build_app(db_filename=None):
     return app
 
 
-def run_server(app):
+def run_server(app, port=8080):
     cherrypy.tree.graft(app, '/')
 
     cherrypy.config.update({
-        'server.socket_port': int(os.environ.get('PORT', '8080')),
+        'server.socket_port': port,
         'server.socket_host': '0.0.0.0'
     })
     cherrypy.log.error_log.setLevel(logging.WARNING)

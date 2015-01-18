@@ -9,11 +9,11 @@ class Item:
 class DurabilityTests(DbTestCase):
 
     def setUp(self):
-        DbTestCase.stopServer()
+        DbTestCase.stop_server()
         self.db_file = tempfile.NamedTemporaryFile()
 
     def tearDown(self):
-        DbTestCase.stopServer()
+        DbTestCase.stop_server()
         self.db_file.close()
 
     def saveDbFile(self, data):
@@ -23,7 +23,7 @@ class DurabilityTests(DbTestCase):
     def test_can_load_database_with_empty_file(self):
         self.saveDbFile({})
 
-        DbTestCase.startServer(self.db_file.name)
+        DbTestCase.start_server(self.db_file.name)
         read = requests.get(Item(0).url)
 
         self.assertEqual(404, read.status_code)
@@ -31,23 +31,23 @@ class DurabilityTests(DbTestCase):
     def test_can_load_database_from_saved_data(self):
         self.saveDbFile({0: "test-data"})
 
-        DbTestCase.startServer(self.db_file.name)
+        DbTestCase.start_server(self.db_file.name)
         read = requests.get(Item(0).url)
 
         self.assertReturns(read, "test-data")
 
     def test_persists_changes_over_restart(self):
-        DbTestCase.startServer(self.db_file.name)
+        DbTestCase.start_server(self.db_file.name)
 
         requests.post(Item(0).url, "123")
-        DbTestCase.stopServer()
-        DbTestCase.startServer(self.db_file.name)
+        DbTestCase.stop_server()
+        DbTestCase.start_server(self.db_file.name)
         read = requests.get(Item(0).url)
 
         self.assertReturns(read, 123)
 
     def test_run_quickly_without_persistence(self):
-        DbTestCase.startServer()
+        DbTestCase.start_server()
         data = json.dumps([(i, i) for i in range(0, 1000)])
 
         startTime = time.time()
@@ -57,7 +57,7 @@ class DurabilityTests(DbTestCase):
         self.assertLess(writeTime, 0.1)
 
     def test_run_quickly_with_persistence(self):
-        DbTestCase.startServer(self.db_file.name)
+        DbTestCase.start_server(self.db_file.name)
         data = json.dumps([(i, i) for i in range(0, 1000)])
 
         startTime = time.time()
