@@ -4,6 +4,7 @@ from threading import Thread, Event, Lock
 from concurrent.futures import ThreadPoolExecutor
 from flask import Flask, abort, request, make_response
 
+
 class DatabasePersistThread(Thread):
     def __init__(self, db):
         super().__init__()
@@ -14,14 +15,15 @@ class DatabasePersistThread(Thread):
             self.db.persist_needed.wait()
             self.db.persist_changes()
 
+
 class Database:
     def __init__(self, db_filename, fields_to_index=[], columns=[]):
         self.data = sorteddict()
         self.keys = self.data.keys()
         self.values = self.data.values()
 
-        self.indexes = { field: sorteddict() for field in fields_to_index }
-        self.columns = { field: sorteddict() for field in columns }
+        self.indexes = {field: sorteddict() for field in fields_to_index}
+        self.columns = {field: sorteddict() for field in columns}
 
         self.db_file = None
 
@@ -121,55 +123,57 @@ class Database:
         for column in self.columns.values():
             column.clear()
 
+
 def build_app(db_filename=None):
-  app = Flask(__name__)
-  app.debug = True
+    app = Flask(__name__)
+    app.debug = True
 
-  database = Database(db_filename, ["name"], ["value"])
+    database = Database(db_filename, ["name"], ["value"])
 
-  @app.route("/reset", methods=["POST"])
-  def reset():
-      database.clear()
-      return make_response("", 200)
+    @app.route("/reset", methods=["POST"])
+    def reset():
+        database.clear()
+        return make_response("", 200)
 
-  @app.route("/<int:item_id>", methods=["GET"])
-  def get_item(item_id):
-    try:
-      return json.dumps(database.get(item_id))
-    except KeyError:
-      raise abort(404)
+    @app.route("/<int:item_id>", methods=["GET"])
+    def get_item(item_id):
+        try:
+            return json.dumps(database.get(item_id))
+        except KeyError:
+            raise abort(404)
 
-  @app.route("/range")
-  def get_range():
-    start, end = int(request.args.get('start')), int(request.args.get('end'))
-    return json.dumps(database.get_range(start, end))
+    @app.route("/range")
+    def get_range():
+        start, end = int(request.args.get('start')), int(request.args.get('end'))
+        return json.dumps(database.get_range(start, end))
 
-  @app.route("/<int:item_id>", methods=["POST"])
-  def post_item(item_id):
-    value = json.loads(request.data.decode('utf-8'))
-    database.put(item_id, value)
-    return make_response(str(value), 201)
+    @app.route("/<int:item_id>", methods=["POST"])
+    def post_item(item_id):
+        value = json.loads(request.data.decode('utf-8'))
+        database.put(item_id, value)
+        return make_response(str(value), 201)
 
-  @app.route("/", methods=["POST"])
-  def post_items():
-    data = json.loads(request.data.decode('utf-8'))
-    with ThreadPoolExecutor(10) as executor:
-      list(executor.map(lambda pair: database.put(pair[0], pair[1]), data))
-    return make_response("", 201)
+    @app.route("/", methods=["POST"])
+    def post_items():
+        data = json.loads(request.data.decode('utf-8'))
+        with ThreadPoolExecutor(10) as executor:
+            list(executor.map(lambda pair: database.put(pair[0], pair[1]), data))
+        return make_response("", 201)
 
-  @app.route("/by/<field_name>/<field_value>")
-  def query_by_field(field_name, field_value):
-    parsed_value = json.loads(field_value)
-    try:
-        return json.dumps(database.get_by(field_name, parsed_value))
-    except KeyError:
-        raise abort(404)
+    @app.route("/by/<field_name>/<field_value>")
+    def query_by_field(field_name, field_value):
+        parsed_value = json.loads(field_value)
+        try:
+            return json.dumps(database.get_by(field_name, parsed_value))
+        except KeyError:
+            raise abort(404)
 
-  @app.route("/sum/<field_name>")
-  def sum(field_name):
-    return make_response(str(database.sum(field_name)), 200)
+    @app.route("/sum/<field_name>")
+    def sum(field_name):
+        return make_response(str(database.sum(field_name)), 200)
 
-  return app
+    return app
+
 
 def run_server(app):
     cherrypy.tree.graft(app, '/')
@@ -182,6 +186,7 @@ def run_server(app):
 
     cherrypy.engine.start()
     cherrypy.engine.block()
+
 
 if __name__ == '__main__':
     app = build_app()
