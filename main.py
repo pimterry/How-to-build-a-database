@@ -1,6 +1,6 @@
 import os, json, logging, cherrypy, collections, pickle, requests
 from blist import sorteddict
-from threading import Thread, Event, Lock
+from threading import Thread, Event, RLock
 from concurrent.futures import ThreadPoolExecutor
 from flask import Flask, abort, request, make_response
 
@@ -16,6 +16,16 @@ class DatabasePersistThread(Thread):
             self.db.persist_changes()
 
 
+class DatabaseReplicationThread(Thread):
+    def __init__(self, db):
+        super().__init__()
+        self.db = db
+
+    def run(self):
+        while True:
+            self.db.sync_changes()
+
+
 class Database:
     def __init__(self, db_filename, fields_to_index=[], columns=[], cluster=[]):
         self.data = sorteddict()
@@ -25,10 +35,13 @@ class Database:
         self.indexes = {field: sorteddict() for field in fields_to_index}
         self.columns = {field: sorteddict() for field in columns}
 
-        self.db_file = None
-        self.cluster = cluster
+        self.lock = RLock()
 
-        self.lock = Lock()
+        self._setup_cluster(cluster)
+        self._setup_persistence(db_filename)
+
+    def _setup_persistence(self, db_filename):
+        self.db_file = None
 
         self.persist_needed = Event()
         self.persisted = Event()
@@ -41,6 +54,12 @@ class Database:
             self.db_file = db_file
 
             DatabasePersistThread(self).start()
+
+    def _setup_cluster(self, cluster):
+        self.cluster = cluster
+
+        if len(cluster) > 0:
+            DatabaseReplicationThread(self).start()
 
     def load_db(self, db_file):
         data = pickle.load(db_file)
@@ -66,15 +85,15 @@ class Database:
                 self.persisted.clear()
                 self.persist_needed.set()
 
-            self.sync_with_cluster(key, value)
+            self.sync_changes()
         self.persisted.wait()
 
-    def sync_with_cluster(self, key, value):
-        for server in self.cluster:
-            try:
-                requests.post("%s/%s" % (server, key), json.dumps(value))
-            except:
-                pass
+    def sync_changes(self):
+        with self.lock:
+            for server in self.cluster:
+                try:
+                    requests.post(server, json.dumps(list(self.data.items())))
+                except requests.exceptions.ConnectionError: pass
 
     def persist_changes(self):
         if self.db_file is not None:

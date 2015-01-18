@@ -40,20 +40,20 @@ class DistributedTests(DbTestCase):
     def tearDown(self):
         for server in self.servers:
             server.terminate()
-        self.stop_all_proxies()
+        self.disconnect_everything()
 
-    def start_proxy(self, proxy_num):
+    def make_reachable(self, proxy_num):
         self.proxies[proxy_num] = start_proxy(proxy_port(proxy_num), server_port(proxy_num))
 
     def start_all_proxies(self):
         for i in range(3):
             self.proxies[i] = start_proxy(proxy_port(i), server_port(i))
 
-    def stop_proxy(self, proxy_num):
+    def make_unreachable(self, proxy_num):
         self.proxies[proxy_num].terminate()
         self.proxies[proxy_num] = None
 
-    def stop_all_proxies(self):
+    def disconnect_everything(self):
         for proxy in self.proxies:
             if proxy is not None:
                 proxy.terminate()
@@ -69,9 +69,19 @@ class DistributedTests(DbTestCase):
         self.assertReturns(read2, 5)
 
     def test_cluster_replicate_despite_individual_outages(self):
-        self.stop_proxy(1)
+        self.make_unreachable(1)
         requests.post(Server(0).item(0), "1")
 
         read2 = requests.get(Server(2).item(0))
 
         self.assertReturns(read2, 1)
+
+    def test_cluster_replicates_missed_writes_to_servers_after_outages(self):
+        self.make_unreachable(1)
+        requests.post(Server(0).item(0), "2")
+
+        self.make_reachable(1)
+        time.sleep(0.5)
+        read1 = requests.get(Server(1).item(0))
+
+        self.assertReturns(read1, 2)
