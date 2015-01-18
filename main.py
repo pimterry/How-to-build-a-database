@@ -57,6 +57,7 @@ class Database:
 
     def _setup_cluster(self, cluster):
         self.cluster = cluster
+        self.data_for_server = {server: {} for server in self.cluster}
 
         if len(cluster) > 0:
             DatabaseReplicationThread(self).start()
@@ -85,14 +86,24 @@ class Database:
                 self.persisted.clear()
                 self.persist_needed.set()
 
+            self.sync_change(key, value)
             self.sync_changes()
         self.persisted.wait()
+
+    def sync_change(self, key, value):
+        with self.lock:
+            for server in self.cluster:
+                self.data_for_server[server][key] = value
 
     def sync_changes(self):
         with self.lock:
             for server in self.cluster:
+                data_to_sync = self.data_for_server[server]
+                if len(data_to_sync) == 0: continue
+
                 try:
-                    requests.post(server, json.dumps(list(self.data.items())))
+                    requests.post(server, json.dumps(list(data_to_sync.items())))
+                    data_to_sync.clear()
                 except requests.exceptions.ConnectionError: pass
 
     def persist_changes(self):

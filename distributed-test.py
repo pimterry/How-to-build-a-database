@@ -18,6 +18,9 @@ class Server:
     def item(self, id = None):
         return "%s/%s" % (self.root(), id)
 
+    def range(self, start, end):
+        return "%s/range?start=%s&end=%s" % (self.root(), start, end)
+
     def root(self):
         return "http://localhost:%s/" % self.port
 
@@ -85,3 +88,17 @@ class DistributedTests(DbTestCase):
         read1 = requests.get(Server(1).item(0))
 
         self.assertReturns(read1, 2)
+
+    def test_changes_are_synchronized_both_ways_after_outages(self):
+        requests.post(Server(0).root(), json.dumps([(0, 100), (1, 100)]))
+        self.disconnect_everything()
+
+        requests.post(Server(0, direct=True).item(0), "0")
+        requests.post(Server(1, direct=True).item(1), "1")
+        self.start_all_proxies()
+        time.sleep(0.5)
+
+        read0 = requests.get(Server(0).range(0, 1))
+        read1 = requests.get(Server(1).range(0, 1))
+        self.assertReturns(read0, [0, 1])
+        self.assertReturns(read1, [0, 1])
