@@ -42,3 +42,11 @@ class DistributedTests(DbTestCase):
 
         self.assertReturns(read1, 5)
         self.assertReturns(read2, 5)
+
+    def test_cluster_replicate_despite_individual_outages(self):
+        self.proxies[1].terminate()
+        requests.post(Server(0).item(0), "1")
+
+        read2 = requests.get(Server(2).item(0))
+
+        self.assertReturns(read2, 1)

@@ -71,7 +71,10 @@ class Database:
 
     def sync_with_cluster(self, key, value):
         for server in self.cluster:
-            requests.post("%s/%s" % (server, key), json.dumps(value))
+            try:
+                requests.post("%s/%s" % (server, key), json.dumps(value))
+            except:
+                pass
 
     def persist_changes(self):
         if self.db_file is not None:

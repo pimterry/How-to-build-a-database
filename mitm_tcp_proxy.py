@@ -62,6 +62,8 @@ class MitmTcpProxy(Thread):
         except: pass
 
     def terminate(self):
+        if not self.running: return
+
         try:
             self.running = False
             self.listen_socket.shutdown(socket.SHUT_RDWR)
