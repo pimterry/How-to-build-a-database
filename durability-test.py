@@ -64,4 +64,4 @@ class DurabilityTests(DbTestCase):
         requests.post(DB_ROOT, data)
         writeTime = time.time() - startTime
 
-        self.assertLess(writeTime, 0.15)
+        self.assertLess(writeTime, 0.2)

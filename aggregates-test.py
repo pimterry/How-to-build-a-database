@@ -32,7 +32,7 @@ class AggregatesTests(DbTestCase):
       read = requests.get(Sum('value').url)
     query_seconds = (time.time() - start) / 50
 
-    self.assertLess(query_seconds, 0.02)
+    self.assertLess(query_seconds, 0.03)
     self.assertReturns(read, 10000)
 
   def test_handles_removal_of_column_indexed_field(self):
