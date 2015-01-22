@@ -17,17 +17,6 @@ class DatabasePersistThread(Thread):
             self.db.persist_changes()
 
 
-class DatabaseReplicationThread(Thread):
-    def __init__(self, db):
-        super().__init__()
-        self.db = db
-
-    def run(self):
-        while True:
-            time.sleep(0.01)
-            self.db.sync_changes()
-
-
 class Database:
     def __init__(self, db_filename, fields_to_index=[], columns=[], cluster=[]):
         self.data = sorteddict()
@@ -61,12 +50,6 @@ class Database:
         self.cluster = cluster
         self.data_for_server = {server: {} for server in self.cluster}
 
-        self.changes_synced = Event()
-        self.changes_synced.set()
-
-        if len(cluster) > 0:
-            pass # DatabaseReplicationThread(self).start()
-
     def load_db(self, db_file):
         data = pickle.load(db_file)
         for k, v in data.items():
@@ -82,8 +65,14 @@ class Database:
 
             self.sync_change(key, value)
 
-            while not self.is_replication_completed():
+            try:
                 self.sync_changes()
+            except ValueError:
+                # Failed to replicate -> probably conflict, so rollback
+                self.data[key] = old_value
+                for data in self.data_for_server.values():
+                    data.clear()
+                raise
 
             if isinstance(value, collections.Iterable):
                 for field_name, index in self.indexes.items():
@@ -104,21 +93,21 @@ class Database:
     def sync_change(self, key, value):
         for server in self.cluster:
             self.data_for_server[server][key] = value
-        self.changes_synced.clear()
 
     def sync_changes(self):
         with self.lock:
-            for server in self.cluster:
-                data_to_sync = self.data_for_server[server]
-                if len(data_to_sync) == 0: continue
+            while not self.is_replication_completed():
+                for server in self.cluster:
+                    data_to_sync = self.data_for_server[server]
+                    if len(data_to_sync) == 0: continue
 
-                try:
-                    for k, v in data_to_sync.items():
-                        result = requests.post("%s/%s" % (server, k), json.dumps(v))
-                    data_to_sync.clear()
-                except requests.exceptions.RequestException: pass
-
-        self.changes_synced.set()
+                    try:
+                        for k, v in data_to_sync.items():
+                            result = requests.post("%s/%s" % (server, k), json.dumps(v))
+                            if result.status_code == 503:
+                                raise ValueError("Conflict when replicating value")
+                        data_to_sync.clear()
+                    except requests.exceptions.RequestException: pass
 
     def persist_changes(self):
         if self.db_file is not None:
@@ -156,30 +145,34 @@ class Database:
             return self.data[key]
 
     def get_range(self, start_key, end_key):
-        start_index = self.keys.bisect_left(start_key)
-        end_index = self.keys.bisect_right(end_key)
+        with self.lock:
+            start_index = self.keys.bisect_left(start_key)
+            end_index = self.keys.bisect_right(end_key)
 
-        return self.values[start_index:end_index]
+            return self.values[start_index:end_index]
 
     def get_by(self, field_name, field_value):
-        if field_name not in self.indexes:
-            raise ValueError("Cannot query without an index for field %s" % field_name)
+        with self.lock:
+            if field_name not in self.indexes:
+                raise ValueError("Cannot query without an index for field %s" % field_name)
 
-        index = self.indexes[field_name]
-        return index[field_value]
+            index = self.indexes[field_name]
+            return index[field_value]
 
     def sum(self, field_name):
-        if field_name not in self.columns:
-            raise ValueError("Cannot aggregate non-columnular data")
+        with self.lock:
+            if field_name not in self.columns:
+                raise ValueError("Cannot aggregate non-columnular data")
 
-        return sum(self.columns[field_name].values())
+            return sum(self.columns[field_name].values())
 
     def clear(self):
-        self.data.clear()
-        for index in self.indexes.values():
-            index.clear()
-        for column in self.columns.values():
-            column.clear()
+        with self.lock:
+            self.data.clear()
+            for index in self.indexes.values():
+                index.clear()
+            for column in self.columns.values():
+                column.clear()
 
 
 def build_app(db_filename=None, cluster=[]):
@@ -212,7 +205,7 @@ def build_app(db_filename=None, cluster=[]):
         try:
             database.put(item_id, value)
             return make_response(str(value), 201)
-        except TimeoutError:
+        except (TimeoutError, ValueError):
             abort(503)
 
     @app.route("/", methods=["POST"])

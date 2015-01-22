@@ -17,5 +17,3 @@ class TimeoutLock:
 
     def __exit__(self, type, value, traceback):
         self.lock.release()
-
-exports = TimeoutLock
