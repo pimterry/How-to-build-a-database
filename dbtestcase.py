@@ -6,9 +6,9 @@ DB_ROOT = "http://localhost:8080"
 
 logging.getLogger("requests.packages.urllib3").setLevel(logging.WARN)
 
-def instance_starter(db_file, port, cluster):
+def instance_starter(port):
     def start_instance():
-        run_server(build_app(db_file, cluster), port)
+        run_server(build_app(), port)
     return start_instance
 
 class DbTestCase(unittest.TestCase):
@@ -23,12 +23,12 @@ class DbTestCase(unittest.TestCase):
         requests.post(DB_ROOT + "/reset")
 
     @classmethod
-    def start_server(cls, db_file=None, port=8080):
-        DbTestCase.server = DbTestCase.start_and_return_server(db_file, port)
+    def start_server(cls):
+        DbTestCase.server = DbTestCase.start_and_return_server()
 
     @classmethod
-    def start_and_return_server(cls, db_file=None, port=8080, cluster=[]):
-        process = Process(target=instance_starter(db_file, port, cluster))
+    def start_and_return_server(cls, port=8080):
+        process = Process(target=instance_starter(port))
         process.start()
         time.sleep(0.1)
         return process

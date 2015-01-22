@@ -9,11 +9,11 @@ def build_app():
     return app
 
 
-def run_server(app):
+def run_server(app, port=8080):
     cherrypy.tree.graft(app, '/')
 
     cherrypy.config.update({
-        'server.socket_port': 8080,
+        'server.socket_port': port,
         'server.socket_host': '0.0.0.0'
     })
     cherrypy.log.error_log.setLevel(logging.WARNING)

@@ -17,6 +17,8 @@ class MitmTcpProxy(Thread):
         self.target_port = target_port
         self.target_host = target_host
 
+        self.delay = 0
+
     def run(self):
         self.running = True
 
@@ -50,10 +52,10 @@ class MitmTcpProxy(Thread):
         try:
             while data:
                 data = source.recv(1024)
-                if data: target.sendall(data)
-        except socket.error as e:
-            print("Forwarding socket threw an exception: %s" % e)
-            traceback.print_exc()
+                if data:
+                    time.sleep(self.delay)
+                    target.sendall(data)
+        except: pass
 
         try: source.shutdown(socket.SHUT_RD)
         except: pass
@@ -61,7 +63,12 @@ class MitmTcpProxy(Thread):
         try: target.shutdown(socket.SHUT_WR)
         except: pass
 
+    def set_delay(self, delay):
+        self.delay = delay
+
     def terminate(self):
+        if not self.running: return
+
         try:
             self.running = False
             self.listen_socket.shutdown(socket.SHUT_RDWR)
