@@ -9,11 +9,8 @@ def server_port(i):
     return 8080 + i
 
 class Server:
-    def __init__(self, server_num, direct=False):
-        if direct:
-            self.port = server_port(server_num)
-        else:
-            self.port = proxy_port(server_num)
+    def __init__(self, server_num):
+        self.port = server_port(server_num)
 
     def item(self, id = None):
         return "%s/%s" % (self.root(), id)
@@ -71,6 +68,7 @@ class DistributedTests(DbTestCase):
         self.assertReturns(read1, 5)
         self.assertReturns(read2, 5)
 
+    @unittest.skip
     def test_cluster_replicate_despite_individual_outages(self):
         self.make_unreachable(1)
         requests.post(Server(0).item(0), "1")
@@ -79,6 +77,7 @@ class DistributedTests(DbTestCase):
 
         self.assertReturns(read2, 1)
 
+    @unittest.skip
     def test_cluster_replicates_missed_writes_to_servers_after_outages(self):
         self.make_unreachable(1)
         requests.post(Server(0).item(0), "2")
@@ -89,12 +88,13 @@ class DistributedTests(DbTestCase):
 
         self.assertReturns(read1, 2)
 
+    @unittest.skip
     def test_changes_are_synchronized_both_ways_after_outages(self):
         requests.post(Server(0).root(), json.dumps([(0, 100), (1, 100)]))
         self.disconnect_everything()
 
-        requests.post(Server(0, direct=True).item(0), "0")
-        requests.post(Server(1, direct=True).item(1), "1")
+        requests.post(Server(0).item(0), "0")
+        requests.post(Server(1).item(1), "1")
         self.start_all_proxies()
         time.sleep(0.5)
 
@@ -102,3 +102,20 @@ class DistributedTests(DbTestCase):
         read1 = requests.get(Server(1).range(0, 1))
         self.assertReturns(read0, [0, 1])
         self.assertReturns(read1, [0, 1])
+
+    def test_reads_always_return_the_most_recently_written_value(self):
+        for i in range(10):
+            requests.post(Server(0).item(i), str(i))
+
+            read = requests.get(Server(1).item(i))
+            self.assertReturns(read, i)
+
+    def test_cluster_refuses_writes_which_cannot_be_consistent(self):
+        self.disconnect_everything()
+
+        try:
+            requests.post(Server(0).item(0), "0", timeout=0.5)
+            self.fail("Should not successfully write when network is disconnected")
+        except requests.exceptions.Timeout:
+            pass
+

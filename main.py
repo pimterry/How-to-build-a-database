@@ -1,4 +1,4 @@
-import os, json, logging, cherrypy, collections, pickle, requests
+import os, json, logging, cherrypy, collections, pickle, requests, time
 from blist import sorteddict
 from threading import Thread, Event, RLock
 from concurrent.futures import ThreadPoolExecutor
@@ -23,6 +23,7 @@ class DatabaseReplicationThread(Thread):
 
     def run(self):
         while True:
+            time.sleep(0.01)
             self.db.sync_changes()
 
 
@@ -59,6 +60,9 @@ class Database:
         self.cluster = cluster
         self.data_for_server = {server: {} for server in self.cluster}
 
+        self.changes_synced = Event()
+        self.changes_synced.set()
+
         if len(cluster) > 0:
             DatabaseReplicationThread(self).start()
 
@@ -87,13 +91,18 @@ class Database:
                 self.persist_needed.set()
 
             self.sync_change(key, value)
-            self.sync_changes()
         self.persisted.wait()
 
+        while not self.is_replication_completed():
+            self.changes_synced.wait()
+
+    def is_replication_completed(self):
+        return all(len(data) == 0 for data in self.data_for_server.values())
+
     def sync_change(self, key, value):
-        with self.lock:
-            for server in self.cluster:
-                self.data_for_server[server][key] = value
+        for server in self.cluster:
+            self.data_for_server[server][key] = value
+        self.changes_synced.clear()
 
     def sync_changes(self):
         with self.lock:
@@ -105,6 +114,8 @@ class Database:
                     requests.post(server, json.dumps(list(data_to_sync.items())))
                     data_to_sync.clear()
                 except requests.exceptions.ConnectionError: pass
+
+        self.changes_synced.set()
 
     def persist_changes(self):
         if self.db_file is not None:
@@ -138,7 +149,8 @@ class Database:
             column[key] = new_value[field_name]
 
     def get(self, key):
-        return self.data[key]
+        with self.lock:
+            return self.data[key]
 
     def get_range(self, start_key, end_key):
         start_index = self.keys.bisect_left(start_key)
