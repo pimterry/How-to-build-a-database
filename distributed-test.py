@@ -1,5 +1,6 @@
 import requests, time, json, unittest
 from dbtestcase import DbTestCase
+from multiprocessing.pool import ThreadPool
 from mitm_tcp_proxy import start_proxy
 
 def proxy_port(i):
@@ -57,6 +58,11 @@ class DistributedTests(DbTestCase):
         for proxy in self.proxies:
             if proxy is not None:
                 proxy.terminate()
+                proxy = None
+
+    def set_delay(self, delay):
+        for proxy in self.proxies:
+            proxy.set_delay(delay)
 
     def test_data_is_available_from_all_servers(self):
         requests.post(Server(0).item(0), "5")
@@ -114,8 +120,21 @@ class DistributedTests(DbTestCase):
         self.disconnect_everything()
 
         try:
-            requests.post(Server(0).item(0), "0", timeout=0.5)
+            requests.post(Server(0).item(0), "0", timeout=1)
             self.fail("Should not successfully write when network is disconnected")
         except requests.exceptions.Timeout:
             pass
 
+    def test_concurrent_changes_dont_deadlock(self):
+        self.set_delay(0.1)
+
+        def try_and_write(i):
+            result = requests.post(Server(0).item(i % 3), str(i), timeout=5)
+            self.assertIn(result.status_code, [201, 503])
+
+        threads = ThreadPool(processes=4).map_async(try_and_write, range(20))
+
+        try:
+            threads.get()
+        except requests.exceptions.Timeout:
+            self.fail("Request deadlocked and timed out")

@@ -1,6 +1,7 @@
 import os, json, logging, cherrypy, collections, pickle, requests, time
 from blist import sorteddict
 from threading import Thread, Event, RLock
+from timeoutlock import TimeoutLock
 from concurrent.futures import ThreadPoolExecutor
 from flask import Flask, abort, request, make_response
 
@@ -36,7 +37,7 @@ class Database:
         self.indexes = {field: sorteddict() for field in fields_to_index}
         self.columns = {field: sorteddict() for field in columns}
 
-        self.lock = RLock()
+        self.lock = TimeoutLock(0.5)
 
         self._setup_cluster(cluster)
         self._setup_persistence(db_filename)
@@ -64,7 +65,7 @@ class Database:
         self.changes_synced.set()
 
         if len(cluster) > 0:
-            DatabaseReplicationThread(self).start()
+            pass # DatabaseReplicationThread(self).start()
 
     def load_db(self, db_file):
         data = pickle.load(db_file)
@@ -79,6 +80,11 @@ class Database:
         with self.lock:
             self.data[key] = value
 
+            self.sync_change(key, value)
+
+            while not self.is_replication_completed():
+                self.sync_changes()
+
             if isinstance(value, collections.Iterable):
                 for field_name, index in self.indexes.items():
                     self._update_index(index, field_name, value, old_value)
@@ -90,11 +96,7 @@ class Database:
                 self.persisted.clear()
                 self.persist_needed.set()
 
-            self.sync_change(key, value)
         self.persisted.wait()
-
-        while not self.is_replication_completed():
-            self.changes_synced.wait()
 
     def is_replication_completed(self):
         return all(len(data) == 0 for data in self.data_for_server.values())
@@ -111,9 +113,10 @@ class Database:
                 if len(data_to_sync) == 0: continue
 
                 try:
-                    requests.post(server, json.dumps(list(data_to_sync.items())))
+                    for k, v in data_to_sync.items():
+                        result = requests.post("%s/%s" % (server, k), json.dumps(v))
                     data_to_sync.clear()
-                except requests.exceptions.ConnectionError: pass
+                except requests.exceptions.RequestException: pass
 
         self.changes_synced.set()
 
@@ -205,8 +208,12 @@ def build_app(db_filename=None, cluster=[]):
     @app.route("/<int:item_id>", methods=["POST"])
     def post_item(item_id):
         value = json.loads(request.data.decode('utf-8'))
-        database.put(item_id, value)
-        return make_response(str(value), 201)
+
+        try:
+            database.put(item_id, value)
+            return make_response(str(value), 201)
+        except TimeoutError:
+            abort(503)
 
     @app.route("/", methods=["POST"])
     def post_items():
