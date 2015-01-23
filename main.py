@@ -1,12 +1,18 @@
-import logging, cherrypy, blist, json
+import logging, cherrypy, blist, json, pickle
 from flask import Flask, abort, request, make_response
 
 
 class Database:
-    def __init__(self, fields_to_index, columns):
+    def __init__(self, fields_to_index, columns, db_filename=None):
         self.data = blist.sorteddict()
         self.indexes = { index: blist.sorteddict() for index in fields_to_index }
         self.columns = { column: blist.sorteddict() for column in columns }
+
+        if db_filename:
+            db_file = open(db_filename, 'r+b')
+            saved_data = pickle.load(db_file)
+            for key in saved_data:
+                self.put_item(key, saved_data[key])
 
     def get_item(self, key):
         return self.data[key]
@@ -70,11 +76,11 @@ class Database:
             column.clear()
 
 
-def build_app():
+def build_app(db_filename=None):
     app = Flask(__name__)
     app.debug = True
 
-    database = Database(["name"], ["cost"])
+    database = Database(["name"], ["cost"], db_filename)
 
     @app.route("/<int:item_id>")
     def get_item(item_id):

@@ -1,8 +1,7 @@
 from dbtestcase import DbTestCase
 from timeout_decorator import timeout
-import requests, json, time, tempfile, pickle, unittest
+import requests, json, time, tempfile, pickle
 
-@unittest.skip
 class DurabilityTest(DbTestCase):
     def setUp(self):
         DbTestCase.stop_server()
@@ -16,5 +15,10 @@ class DurabilityTest(DbTestCase):
         pickle.dump(data, self.db_file)
         self.db_file.flush()
 
-    def test_something(self):
-        pass
+    def test_can_load_database_from_file(self):
+        self.saveDbFile({ 0: "hello /dev/winter" })
+
+        DbTestCase.start_server(db_filename=self.db_file.name)
+        read = requests.get("http://localhost:8080/0")
+
+        self.assertReturns(read, "hello /dev/winter")
