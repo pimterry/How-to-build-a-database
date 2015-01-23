@@ -3,9 +3,10 @@ from flask import Flask, abort, request, make_response
 
 
 class Database:
-    def __init__(self, fields_to_index):
+    def __init__(self, fields_to_index, columns):
         self.data = blist.sorteddict()
         self.indexes = { index: blist.sorteddict() for index in fields_to_index }
+        self.columns = { column: blist.sorteddict() for column in columns }
 
     def get_item(self, key):
         return self.data[key]
@@ -29,6 +30,12 @@ class Database:
             except (KeyError, TypeError):
                 pass
 
+        for field_name in self.columns:
+            try:
+                column = self.columns[field_name]
+                column[key] = value[field_name]
+            except (KeyError, TypeError):
+                pass
 
     def get_range(self, start, end):
         start_index = self.data.keys().bisect_left(start)
@@ -43,15 +50,25 @@ class Database:
         else:
             raise RuntimeError("Attempt to query for non-indexed field")
 
+    def sum(self, field_name):
+        if field_name in self.columns:
+            return sum(self.columns[field_name].values())
+        else:
+            return sum(item[field_name] for item in self.data.values())
+
     def reset(self):
         self.data.clear()
+        for index in self.indexes.values():
+            index.clear()
+        for column in self.columns.values():
+            column.clear()
 
 
 def build_app():
     app = Flask(__name__)
     app.debug = True
 
-    database = Database(["name"])
+    database = Database(["name"], ["cost"])
 
     @app.route("/<int:item_id>")
     def get_item(item_id):
@@ -79,6 +96,10 @@ def build_app():
             return json.dumps(database.get_by_field(field_name, field_value))
         except KeyError:
             return abort(404)
+
+    @app.route("/sum/<field_name>")
+    def sum(field_name):
+        return json.dumps(database.sum(field_name))
 
     @app.route("/", methods=["POST"])
     def batch_upload():
