@@ -1,5 +1,7 @@
 venv/
 .vagrant
+.idea
+*.iml
 
 *.pyc
 *.sw*
