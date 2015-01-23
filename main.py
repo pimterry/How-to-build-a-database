@@ -2,6 +2,11 @@ import logging, cherrypy, blist
 from flask import Flask
 
 
+class Database:
+    def __init__(self):
+        pass
+
+
 def build_app():
     app = Flask(__name__)
     app.debug = True
