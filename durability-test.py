@@ -22,3 +22,13 @@ class DurabilityTest(DbTestCase):
         read = requests.get("http://localhost:8080/0")
 
         self.assertReturns(read, "hello /dev/winter")
+
+    def test_database_persists_over_restart(self):
+        DbTestCase.start_server(db_filename=self.db_file.name)
+
+        requests.post("http://localhost:8080/123", "4")
+        DbTestCase.stop_server()
+        DbTestCase.start_server(db_filename=self.db_file.name)
+        read = requests.get("http://localhost:8080/123")
+
+        self.assertReturns(read, 4)

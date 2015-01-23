@@ -1,4 +1,4 @@
-import logging, cherrypy, blist, json, pickle
+import logging, cherrypy, blist, json, pickle, os
 from flask import Flask, abort, request, make_response
 
 
@@ -8,11 +8,15 @@ class Database:
         self.indexes = { index: blist.sorteddict() for index in fields_to_index }
         self.columns = { column: blist.sorteddict() for column in columns }
 
+        self.db_file = None
+
         if db_filename:
             db_file = open(db_filename, 'r+b')
-            saved_data = pickle.load(db_file)
-            for key in saved_data:
-                self.put_item(key, saved_data[key])
+            if os.path.getsize(db_filename) > 0:
+                saved_data = pickle.load(db_file)
+                for key in saved_data:
+                    self.put_item(key, saved_data[key])
+            self.db_file = db_file
 
     def get_item(self, key):
         return self.data[key]
@@ -20,7 +24,10 @@ class Database:
     def put_item(self, key, value):
         old_value = self.data[key] if key in self.data else None
         self.data[key] = value
+        self._update_metadata(key, value, old_value)
+        self._persist_data()
 
+    def _update_metadata(self, key, value, old_value):
         for field_name in self.indexes:
             index = self.indexes[field_name]
             try:
@@ -48,6 +55,13 @@ class Database:
                 column[key] = value[field_name]
             except (KeyError, TypeError):
                 pass
+
+    def _persist_data(self):
+        if self.db_file:
+            self.db_file.seek(0)
+            pickle.dump(self.data, self.db_file)
+            self.db_file.flush()
+            os.fsync(self.db_file.fileno())
 
     def get_range(self, start, end):
         start_index = self.data.keys().bisect_left(start)
