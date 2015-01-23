@@ -1,15 +1,36 @@
 import logging, cherrypy, blist
-from flask import Flask
+from flask import Flask, abort, request, make_response
 
 
 class Database:
     def __init__(self):
-        pass
+        self.data = {}
+
+    def get_item(self, key):
+        return self.data[key]
+
+    def put_item(self, key, value):
+        self.data[key] = value
 
 
 def build_app():
     app = Flask(__name__)
     app.debug = True
+
+    database = Database()
+
+    @app.route("/<int:item_id>")
+    def get_item(item_id):
+        try:
+            return str(database.get_item(item_id))
+        except KeyError:
+            return abort(404)
+
+    @app.route("/<int:item_id>", methods=["POST"])
+    def put_item(item_id):
+        value = int(request.data)
+        database.put_item(item_id, value)
+        return make_response("ok", 201)
 
     return app
 
