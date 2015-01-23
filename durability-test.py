@@ -1,10 +1,9 @@
 import requests, random, json, time, tempfile, pickle
 from dbtestcase import DbTestCase, DB_ROOT
 
-class Item:
-    def __init__(self, id = None):
-        self.id = id if id is not None else random.randint(0, 2**32)
-        self.url = "%s/%s" % (DB_ROOT, self.id)
+def item(id = None):
+    id = id if id is not None else random.randint(0, 2**32)
+    return "%s/%s" % (DB_ROOT, id)
 
 class DurabilityTests(DbTestCase):
 
@@ -24,7 +23,7 @@ class DurabilityTests(DbTestCase):
         self.saveDbFile({})
 
         DbTestCase.start_server(self.db_file.name)
-        read = requests.get(Item(0).url)
+        read = requests.get(item(0))
 
         self.assertEqual(404, read.status_code)
 
@@ -32,17 +31,17 @@ class DurabilityTests(DbTestCase):
         self.saveDbFile({0: "test-data"})
 
         DbTestCase.start_server(self.db_file.name)
-        read = requests.get(Item(0).url)
+        read = requests.get(item(0))
 
         self.assertReturns(read, "test-data")
 
     def test_persists_changes_over_restart(self):
         DbTestCase.start_server(self.db_file.name)
 
-        requests.post(Item(0).url, "123")
+        requests.post(item(0), "123")
         DbTestCase.stop_server()
         DbTestCase.start_server(self.db_file.name)
-        read = requests.get(Item(0).url)
+        read = requests.get(item(0))
 
         self.assertReturns(read, 123)
 
