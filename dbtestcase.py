@@ -2,8 +2,6 @@ import unittest, time, requests, json, logging
 from multiprocessing import Process
 from main import build_app, run_server
 
-DB_ROOT = "http://localhost:8080"
-
 logging.getLogger("requests.packages.urllib3").setLevel(logging.WARN)
 
 def instance_starter(port):
@@ -20,7 +18,7 @@ class DbTestCase(unittest.TestCase):
         if not DbTestCase.server or not DbTestCase.server.is_alive():
             DbTestCase.start_server()
 
-        requests.post(DB_ROOT + "/reset")
+        requests.post("http://localhost:8080/reset")
 
     @classmethod
     def start_server(cls):
