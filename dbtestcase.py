@@ -18,7 +18,8 @@ class DbTestCase(unittest.TestCase):
         if not DbTestCase.server or not DbTestCase.server.is_alive():
             DbTestCase.start_server()
 
-        requests.post("http://localhost:8080/reset")
+        reset = requests.post("http://localhost:8080/reset")
+        reset.raise_for_status()
 
     @classmethod
     def start_server(cls):
