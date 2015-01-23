@@ -1,16 +1,25 @@
-import logging, cherrypy, blist
+import logging, cherrypy, blist, json
 from flask import Flask, abort, request, make_response
 
 
 class Database:
     def __init__(self):
-        self.data = {}
+        self.data = blist.sorteddict()
 
     def get_item(self, key):
         return self.data[key]
 
     def put_item(self, key, value):
         self.data[key] = value
+
+    def get_range(self, start, end):
+        start_index = self.data.keys().bisect_left(start)
+        end_index = self.data.keys().bisect_right(end)
+
+        return self.data.values()[start_index:end_index]
+
+    def reset(self):
+        self.data.clear()
 
 
 def build_app():
@@ -31,6 +40,18 @@ def build_app():
         value = int(request.data)
         database.put_item(item_id, value)
         return make_response("ok", 201)
+
+    @app.route("/range")
+    def get_range():
+        start = int(request.args.get('start'))
+        end = int(request.args.get('end'))
+
+        return json.dumps(database.get_range(start, end))
+
+    @app.route("/reset", methods=["POST"])
+    def reset():
+        database.reset()
+        return make_response("ok", 200)
 
     return app
 
