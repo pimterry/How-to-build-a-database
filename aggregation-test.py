@@ -23,5 +23,5 @@ class AggregationTest(DbTestCase):
             read = requests.get("http://localhost:8080/sum/cost")
         query_seconds = (time.time() - start) / 50
 
-        self.assertLess(query_seconds, 0.01)
+        self.assertLess(query_seconds, 0.02)
         self.assertReturns(read, 10000)
