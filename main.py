@@ -11,6 +11,10 @@ def build_app():
     app = Flask(__name__)
     app.debug = True
 
+    @app.route("/reset", methods=["POST"])
+    def reset():
+        return ""
+
     return app
 
 
