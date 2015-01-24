@@ -23,4 +23,4 @@ class AggregationTest(DbTestCase):
         query_seconds = (time.time() - start) / 50
 
         self.assertReturns(read, 10000)
-        self.assertLess(query_seconds, 0.02)
+        self.assertLess(query_seconds, 0.025)

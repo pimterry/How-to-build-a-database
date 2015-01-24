@@ -1,5 +1,5 @@
-import logging, cherrypy, blist, json, pickle, os, time
-from threading import Thread
+import logging, cherrypy, blist, json, pickle, os, time, requests
+from threading import Thread, RLock
 from flask import Flask, abort, request, make_response
 
 class PersistThread(Thread):
@@ -12,13 +12,30 @@ class PersistThread(Thread):
             self.db._persist_data()
             time.sleep(0.1)
 
+class ReplicationThread(Thread):
+    def __init__(self, db):
+        super().__init__()
+        self.db = db
+
+    def run(self):
+        while True:
+            try:
+                self.db._sync_changes()
+            except Exception as e:
+                print("Error syncing: %s" % e)
+
 class Database:
-    def __init__(self, fields_to_index, columns, db_filename=None):
+    def __init__(self, fields_to_index, columns, db_filename=None, cluster=[]):
         self.data = blist.sorteddict()
         self.indexes = { index: blist.sorteddict() for index in fields_to_index }
         self.columns = { column: blist.sorteddict() for column in columns }
 
+        self.lock = RLock()
+
         self.db_file = None
+        self.cluster = cluster
+
+        self.data_for_server = { server: {} for server in cluster }
 
         if db_filename:
             db_file = open(db_filename, 'r+b')
@@ -30,13 +47,39 @@ class Database:
 
             PersistThread(self).start()
 
+        if len(self.cluster) > 0:
+            ReplicationThread(self).start()
+
+
     def get_item(self, key):
         return self.data[key]
 
     def put_item(self, key, value):
         old_value = self.data[key] if key in self.data else None
-        self.data[key] = value
-        self._update_metadata(key, value, old_value)
+        if value == old_value: return
+
+        with self.lock:
+            self.data[key] = value
+            self._update_metadata(key, value, old_value)
+            self._sync_change(key, value)
+            self._sync_changes()
+
+    def _sync_change(self, key, value):
+        for server_data in self.data_for_server.values():
+            server_data[key] = value
+
+    def _sync_changes(self):
+        with self.lock:
+            for server in self.data_for_server:
+                data = self.data_for_server[server]
+
+                try:
+                    for key, value in data.items():
+                        result = requests.post("%s/%s" % (server, key), json.dumps(value))
+                        result.raise_for_status()
+                    data.clear()
+                except requests.exceptions.RequestException:
+                    pass
 
     def _update_metadata(self, key, value, old_value):
         for field_name in self.indexes:
@@ -101,11 +144,11 @@ class Database:
             column.clear()
 
 
-def build_app(db_filename=None):
+def build_app(db_filename=None, cluster=[]):
     app = Flask(__name__)
     app.debug = True
 
-    database = Database(["name"], ["cost"], db_filename)
+    database = Database(["name"], ["cost"], db_filename, cluster)
 
     @app.route("/<int:item_id>")
     def get_item(item_id):

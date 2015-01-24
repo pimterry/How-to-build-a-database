@@ -22,7 +22,6 @@ class Server:
     def root(self):
         return "http://localhost:%s/" % self.port
 
-@unittest.skip
 class DistributedTests(DbTestCase):
 
     def setUp(self):
@@ -65,5 +64,21 @@ class DistributedTests(DbTestCase):
                 proxy.terminate()
         self.proxies.clear()
 
-    def test_something(self):
-        pass
+    def test_data_is_available_everywhere(self):
+        requests.post(Server(0).item(0), "5")
+
+        read1 = requests.get(Server(1).item(0))
+        read2 = requests.get(Server(2).item(0))
+
+        self.assertReturns(read1, 5)
+        self.assertReturns(read2, 5)
+
+    def test_replicates_after_outages(self):
+        self.make_unreachable(1)
+        requests.post(Server(0).item(0), "10")
+
+        self.make_reachable(1)
+        time.sleep(1)
+        read1 = requests.get(Server(1).item(0))
+
+        self.assertReturns(read1, 10)
