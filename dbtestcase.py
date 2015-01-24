@@ -4,9 +4,9 @@ from main import build_app, run_server
 
 logging.getLogger("requests.packages.urllib3").setLevel(logging.WARN)
 
-def instance_starter(port):
+def instance_starter(port, **kwargs):
     def start_instance():
-        run_server(build_app(), port)
+        run_server(build_app(**kwargs), port)
     return start_instance
 
 class DbTestCase(unittest.TestCase):
@@ -22,12 +22,12 @@ class DbTestCase(unittest.TestCase):
         reset.raise_for_status()
 
     @classmethod
-    def start_server(cls):
-        DbTestCase.server = DbTestCase.start_and_return_server()
+    def start_server(cls, **kwargs):
+        DbTestCase.server = DbTestCase.start_and_return_server(**kwargs)
 
     @classmethod
-    def start_and_return_server(cls, port=8080):
-        process = Process(target=instance_starter(port))
+    def start_and_return_server(cls, port=8080, **kwargs):
+        process = Process(target=instance_starter(port, **kwargs))
         process.start()
         time.sleep(0.1)
         return process
