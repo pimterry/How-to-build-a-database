@@ -31,8 +31,14 @@ class Database:
                 pass
 
         for field_name in self.columns:
+            column = self.columns[field_name]
             try:
-                column = self.columns[field_name]
+                if column[key] == old_value:
+                    del column[key]
+            except (KeyError, TypeError):
+                pass
+
+            try:
                 column[key] = value[field_name]
             except (KeyError, TypeError):
                 pass
