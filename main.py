@@ -1,6 +1,16 @@
-import logging, cherrypy, blist, json, pickle, os
+import logging, cherrypy, blist, json, pickle, os, time
+from threading import Thread
 from flask import Flask, abort, request, make_response
 
+class PersistThread(Thread):
+    def __init__(self, db):
+        super().__init__()
+        self.db = db
+
+    def run(self):
+        while True:
+            self.db._persist_data()
+            time.sleep(0.1)
 
 class Database:
     def __init__(self, fields_to_index, columns, db_filename=None):
@@ -18,6 +28,8 @@ class Database:
                     self.put_item(key, saved_data[key])
             self.db_file = db_file
 
+            PersistThread(self).start()
+
     def get_item(self, key):
         return self.data[key]
 
@@ -25,7 +37,6 @@ class Database:
         old_value = self.data[key] if key in self.data else None
         self.data[key] = value
         self._update_metadata(key, value, old_value)
-        self._persist_data()
 
     def _update_metadata(self, key, value, old_value):
         for field_name in self.indexes:
