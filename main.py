@@ -11,11 +11,19 @@ class Database:
         return self.data[key]
 
     def put_item(self, key, value):
+        old_value = self.data[key] if key in self.data else None
         self.data[key] = value
 
         for field_name in self.indexes:
+            index = self.indexes[field_name]
             try:
-                index = self.indexes[field_name]
+                old_field_value = old_value[field_name]
+                if index[old_field_value] == old_value:
+                    del index[old_field_value]
+            except (KeyError, TypeError):
+                pass
+
+            try:
                 field_value = value[field_name]
                 index[field_value] = value
             except (KeyError, TypeError):
