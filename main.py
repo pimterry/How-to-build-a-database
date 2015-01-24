@@ -3,10 +3,11 @@ from flask import Flask, request, abort
 
 
 class Database:
-    def __init__(self, fields_to_index):
+    def __init__(self, fields_to_index, columns):
         self.data = blist.sorteddict()
 
         self.indexes = { field_name: blist.sorteddict() for field_name in fields_to_index }
+        self.columns = { field_name: blist.sorteddict() for field_name in columns }
 
     def get_item(self, item_id):
         return self.data[item_id]
@@ -33,6 +34,20 @@ class Database:
             except (KeyError, TypeError):
                 pass
 
+        for field_name in self.columns:
+            column = self.columns[field_name]
+            try:
+                if column[key] == old_value:
+                    del column[key]
+            except (KeyError, TypeError):
+                pass
+
+            try:
+                field_value = value[field_name]
+                column[key] = field_value
+            except (KeyError, TypeError):
+                pass
+
     def get_range(self, start, end):
         start_index = self.data.keys().bisect_left(start)
         end_index = self.data.keys().bisect_right(end)
@@ -46,14 +61,26 @@ class Database:
         else:
             raise RuntimeError("Attempt to query for non-indexed value")
 
+    def sum_field(self, field_name):
+        if field_name in self.columns:
+            column = self.columns[field_name]
+            return sum(item for item in column.values())
+        else:
+            return sum(item[field_name] for item in self.data.values()
+                                        if field_name in item)
+
     def reset(self):
         self.data.clear()
+        for index in self.indexes.values():
+            index.clear()
+        for column in self.columns.values():
+            column.clear()
 
 def build_app():
     app = Flask(__name__)
     app.debug = True
 
-    database = Database(["name"])
+    database = Database(["name"], ["cost"])
 
     @app.route("/<int:item_id>")
     def get_item(item_id):
@@ -88,6 +115,10 @@ def build_app():
             return json.dumps(database.get_by_field(field_name, field_value))
         except KeyError:
             return abort(404)
+
+    @app.route("/sum/<field_name>")
+    def sum_field(field_name):
+        return json.dumps(database.sum_field(field_name))
 
     @app.route("/reset", methods=["POST"])
     def reset():
