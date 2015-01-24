@@ -11,11 +11,22 @@ class Database:
     def get_item(self, item_id):
         return self.data[item_id]
 
-    def put_item(self, item_id, value):
-        self.data[item_id] = value
+    def put_item(self, key, value):
+        old_value = self.data[key] if key in self.data else None
 
+        self.data[key] = value
+        self._update_metadata(key, value, old_value)
+
+    def _update_metadata(self, key, value, old_value):
         for field_name in self.indexes:
             index = self.indexes[field_name]
+            try:
+                old_field_value = old_value[field_name]
+                if index[old_field_value] == old_value:
+                    del index[old_field_value]
+            except (KeyError, TypeError):
+                pass
+
             try:
                 field_value = value[field_name]
                 index[field_value] = value
